@@ -60,6 +60,8 @@ const response = await IdentityProvider.register({
 ```
 A page can make multiple calls to register claims.
 
+>Q: can the Issuer signal to the browser here to use a Passkey for authentication?
+
 > Q: Does the Issuer do this each time the page is loaded and the user visits? Perhaps an API for the Issuer to get a list of claims the browser has for the Issuer so the Issuer knows which ones to add? The downside is the potential for cross context disclosure. For example, the user may have both a personal and work account at the same Issuer, and the Issuer does not know the two accounts are for the same user, and the browser does not know which account is signed in, so can only provide all claims to the Issuer.
 
 > Q: How are claims removed that are no longer supported by the Issuer? Is this only done by the user? Perhaps prompted for user to delete if Issuer returns an error? For example, they leave a company and no longer can obtain a verified work email address. How is it removed from future selections? Perhaps similar to other autocomplete cleanup where the user can see the Issuers and claims and can delete which ones will be offered?
