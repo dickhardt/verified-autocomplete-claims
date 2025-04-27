@@ -50,12 +50,15 @@ Ahead of time, a website registers itself as an Issuer:
   
 - **1.1** - User navigates to the apex or any sub-domain of the Issuer such as `issuer.example` or `www.issuer.example` and logs in.
 
-- **1.2** - The page calls to register as an Issuer with:
+- **1.2** - The page calls to register claims it is authoritative for as an Issuer with:
 
 ```javascript
 // This prompts the user to accept "https://issuer.example" as Issuer for john.doe@domain.example.
-const response = await IdentityProvider.register("email","john.doe@domain.example");
+const response = await IdentityProvider.register({
+    email: 'john.doe@domain.example'
+});
 ```
+A page can make multiple calls to register claims.
 
 > Q: Does the Issuer do this each time the page is loaded and the user visits? Perhaps an API for the Issuer to get a list of claims the browser has for the Issuer so the Issuer knows which ones to add? The downside is the potential for cross context disclosure. For example, the user may have both a personal and work account at the same Issuer, and the Issuer does not know the two accounts are for the same user, and the browser does not know which account is signed in, so can only provide all claims to the Issuer.
 
@@ -101,26 +104,8 @@ try {
 }
 ```
 
-Alternative signature
 
-```js
-try {
-  const {token} = await navigator.credentials.get({
-    mediation: "conditional",
-      issuer: {
-        format: "vac-jwt",
-        claim: "email", 
-        nonce: "259c5eae-486d-4b0f-b666-2a5b5ce1c925",
-      }
-    }
-  });
-  // send token to server
-} catch ( e ) {
-   // no providers or other error
-}
-```
-
-> It does not seem practical to enable this functionality to be declarative as the `nonce` is required for the RP server to bind the VAC-JWT to the session. 
+> It does not seem practical to enable this functionality to be declarative in HTML as a unique `nonce` is required for the RP server to bind the VAC-JWT to the session, but perhaps as a header? 
 
 
 
@@ -136,7 +121,7 @@ try {
 
 - **4.1** The browser fetches DNS record for Issuer authorization by prepending `email._webidentity.` to the Issuer domain and fetching the `TXT` and confirming it contains the string `iss=issuer.example`
 
-example DNS record
+example DNS record:
 
 ```
 email._webidentity.domain.example   TXT   iss=issuer.example
@@ -171,20 +156,18 @@ Following is an example `.well-known/web-identity` file
 ```
 
 
-- **4.3** - browser POSTS to the `vac_issuance_endpoint` of the Issuer the selected email, `vac-jst` format, and nonce w/ 1P cookies to get a VAC-JWT:
+- **4.3** - browser POSTS `application/json` to the `vac_issuance_endpoint` of the Issuer containing the selected email, the `vac-jst` format, and the nonce along with w/ 1P cookies to get a VAC-JWT:
 
+```json
+{ "claims": {
+    "email": "john.doe@domain.example"
+  },
+  "format": "vac-jwt",
+  "nonce": "259c5eae-486d-4b0f-b666-2a5b5ce1c925"
+}
 ```
-\\ cookies
-
-email=john.doe@domain.example&
-format=vac-jwt&
-nonce=259c5eae-486d-4b0f-b666-2a5b5ce1c925
-```
-
-Line feeds for readability.
 
 ## 5. User Authentication 
-
 
 - **5.1** - Issuer checks if there is a logged in user with the provided email. If all good the Issuer creates a fresh VAC-JWT per (6) and returns it as the value of `token` in an `application/json` response.
 
@@ -201,7 +184,9 @@ Line feeds for readability.
 
 > Q: can the Issuer set session cookies in the response?
 
-on successful login the Issuer calls `IdentityProvider.resolve(token)` where `token` is the VAC-JWT and the popup window closed?
+> Q: can we include a response that would trigger a Passkey exchange between the browser and the Issuer?
+
+on successful login the Issuer calls `IdentityProvider.resolve(token)` where `token` is the VAC-JWT and the popup window is closed
 
 > Q: what about unsuccessful login? What does the page do? Just close the window after some user notification?
 
