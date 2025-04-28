@@ -47,7 +47,7 @@ Verified Email Release: The user navigates to any website that requires a verifi
 6.  **Token Generation**
 7.  **Token Verification** 
 
-
+## 1. Issuer Registration 
 
 
 Ahead of time, a website registers itself as an Issuer:
@@ -169,9 +169,8 @@ Following is an example `.well-known/web-identity` file
 - **4.3** - browser POSTS `application/json` to the `vac_issuance_endpoint` of the Issuer containing the selected email, the `vac-jst` format, and the nonce along with w/ 1P cookies to get a VAC-JWT:
 
 ```json
-{ "claims": {
-    "email": "john.doe@domain.example"
-  },
+{ 
+  "email": "john.doe@domain.example",
   "format": "vac-jwt",
   "nonce": "259c5eae-486d-4b0f-b666-2a5b5ce1c925"
 }
@@ -225,9 +224,7 @@ Following is an example `.well-known/web-identity` file
 
 ```json
 {
-  "claims": {
-    "email": "john.doe@domain.example"
-  },
+  "email": "john.doe@domain.example",
   "format": "vac-jwt",
   "nonce": "259c5eae-486d-4b0f-b666-2a5b5ce1c925",
   "assertion": {
@@ -254,7 +251,7 @@ on successful login the Issuer calls `IdentityProvider.resolve(token)` where `to
 
 ## 6. Token Generation
 
-- **6.1** - The Issuer generates a VAC-JWT with a `typ` set to `vac-jwt` and the `kid` set to the kid value of the key used to sign the VAC-JWT, and a payload that MUST include the following claims:
+- **6.1** - The Issuer generates a VAC-JWT with a `typ` set to `vac-jwt`, `alg` set to the algorithm used,  and the `kid` set to the kid value of the key used to sign the VAC-JWT, and a payload that MUST include the following claims:
 
 - `iss`: the Issuer domain
 - `iat`: the time the token was issued in UNIX seconds
@@ -265,14 +262,15 @@ on successful login the Issuer calls `IdentityProvider.resolve(token)` where `to
 ```json
 // JWT header
 {
-    "kid": "123456",
-    "typ": "vac-jwt"
+    "typ": "vac-jwt",
+    "alg": "ES256",
+    "kid": "2025-03-28T14:21:03Z"
 }
 // JWT payload
 {
     "iss": "issuer.example",
-    "iat": 0000,
-    "jti": 9999,
+    "iat": 1714311630,
+    "jti": "7b4b3ed1-2c91-4b73-89a5-6b2d826601f0",
     "email": "john.doe@domain.example",
     "nonce": "259c5eae-486d-4b0f-b666-2a5b5ce1c925"
 }
@@ -284,9 +282,6 @@ on successful login the Issuer calls `IdentityProvider.resolve(token)` where `to
 
 - **6.1** - The `navigator.credentials.get()` call returns and `credential.token` is a VAC-JWT
 
-``` 
-// token example and payload
-```
 - **6.2** - JS code sends `token` to RP server. 
 
 - **6.4** - RP Server retrieves the values from VAC-JWT header and payload and and extracts the email domain from the `email` claim.
