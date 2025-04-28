@@ -16,6 +16,8 @@ Verified Autocomplete Claims enables an application to obtain a verified email a
 
 The protocol aligns with the issuer->holder->verifier pattern where the holder is the browser and the verifier is the website requesting a verified email address. Having the browser mediate the issuance and presentation blinds the identity of the verifier from the issuer, improving user privacy. The issuer can be any service that a DNS record for the email domain delegates as being authoritative for the email domain.
 
+The protocol also builds on the Issuer having an existing Passkey for the user for authentication by allowing the Issuer to respond with a WebAuthN challenge on issuance that the browser can then start a WebAuthN browser user experience without loading a page from the Issuer, allowing seamless authentication and authorization user experience.
+
 
 ## Key Concepts
 
@@ -178,10 +180,59 @@ Following is an example `.well-known/web-identity` file
 {"token":"eyssss...."}
 ```
 
-- **5.2** - If the user is not logged, or the email is not associated with the user, the Issuer responds with `application/json` containing `continue_on` with the value of the url the browser should load in a popup window. The hostname for the `continue_on` url MUST end with the Issuer domain. The URL MAY contain a URL query component.
+- **5.2** - If the user is not logged, or the email is not associated with the user, the Issuer responds with `application/json` that MUST contain `continue_on` and may contain `webauth`. 
+
+- **continue_on** - the url the browser should load in a popup window if WebAuthN is not available or the user cancels it. The hostname for the `continue_on` url MUST end with the Issuer domain. The URL MAY contain a URL query component.
+
+- **webauthn** - the WebAuthN parameters for the browser to use, that includes:
+
+    - **challenge** - the WebAuthN challenge
+    - **rpId** - the RP identifier used by the Issuer when the credential was registered
+    - **allowCredentials** - per WebAuthN
+    - **userVerification** -  per WebAuthN
+    - **timeout** -  per WebAuthN
 
 ```json
-{ "continue_on": "https://accounts.issuer.example/login?email=john.doe@domain.example"}
+{ 
+  "continue_on": "https://accounts.issuer.example/login?email=john.doe@domain.example",
+  "webauthn": { // optional
+    "challenge":      [ /* Uint8Array bytes */ ],
+    "rpId":         "issuer.example",
+    "allowCredentials":[
+    {
+      "type": "public-key",
+      "id":   [ /* the raw byte values of credential.id for john.doe@… */ ],
+      "transports": ["internal","usb"]   // optional
+    },
+    {
+      "type": "public-key",
+      "id":   [ /* another credential.id if multi-device */ ]
+    }
+    ],
+    "userVerification": "preferred",
+    "timeout":        60000
+  }
+}
+```
+
+- **5.2** If the browser successful authenticated the user with WebAuthn, the browser repeats the call to the `vat_issuance_endpoint`, including the WebAuthN **assertion** results.
+
+```json
+{
+  "claims": {
+    "email": "john.doe@domain.example"
+  },
+  "format": "vac-jwt",
+  "nonce": "259c5eae-486d-4b0f-b666-2a5b5ce1c925",
+  "assertion": {
+    "id": "PLACEHOLDER_FOR_ASSERTION_ID",
+    "rawId": [0],
+    "clientDataJSON": [0],
+    "authenticatorData": [0],
+    "signature": [0],
+    "userHandle": "PLACEHOLDER_FOR_USER_HANDLE"
+  }
+}
 ```
 
 > Q: can the Issuer set session cookies in the response?
@@ -191,6 +242,8 @@ Following is an example `.well-known/web-identity` file
 on successful login the Issuer calls `IdentityProvider.resolve(token)` where `token` is the VAC-JWT and the popup window is closed
 
 > Q: what about unsuccessful login? What does the page do? Just close the window after some user notification?
+
+
 
 
 ## 6. Token Generation
