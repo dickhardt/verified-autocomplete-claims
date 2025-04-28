@@ -1,5 +1,5 @@
-# verified-autocomplete-claim
-Verified Autocomplete Claim - a browser mediated verified claim release
+# verified-autocomplete-claims
+Verified Autocomplete Claims - a browser mediated verified claim release
 
 > This document currently focusses on providing a verified email claim, but the protocol can be extended to other claims
 
