@@ -26,7 +26,7 @@ If an Issuer provides a registration URI, browsers can detect if an email addres
 
 - VAC-JWT: A JWT signed by the Issuer containing the claim and nonce provided by the RP. The VAC-JWT is requested of the Issuer by the browser at the user's request, and provided to the web page that made the request aka Replying Party (RP) aka verifier.
 
-- Issuer: a service that exposes a `vca_issuance_endpoint` that is called by the browser to obtain an VAC-JWT, and a `sd_jwt_uri` that contains the public keys used to verify the VAC-JWT. The Issuer is identified by its domain, an eTLD+1 (eg `issuer.example`). THe hostname in all URLs from the Issuer's metadata MUST end with the Issuer's domain. This identifier is what binds the VAC-JWT, the DNS delegation, with the Issuer.
+- Issuer: a service that exposes a `vca_issuance_endpoint` that is called by the browser to obtain an VAC-JWT, a `sd_jwks_uri` that contains the public keys used to verify the VAC-JWT, and optionally a `vca_registration_uri` that the browser can open for the user to register an Issuer for an email. The Issuer is identified by its domain, an eTLD+1 (eg `issuer.example`). THe hostname in all URLs from the Issuer's metadata MUST end with the Issuer's domain. This identifier is what binds the VAC-JWT, the DNS delegation, with the Issuer.
 
 > Restricting the Issuer to be an eTLD+1 may be too restrictive. Let's get feedback. Having a crisp identifier and an issuer identifier format different than OpenID Connect tokens (no leading https://) simplifies verification and has clean bindings between all the services, DNS record, and token.
 
