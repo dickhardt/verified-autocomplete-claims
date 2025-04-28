@@ -18,6 +18,8 @@ The protocol aligns with the issuer->holder->verifier pattern where the holder i
 
 The protocol also builds on the Issuer having an existing Passkey for the user for authentication by allowing the Issuer to respond with a WebAuthN challenge on issuance that the browser can then start a WebAuthN browser user experience without loading a page from the Issuer, allowing seamless authentication and authorization user experience.
 
+If an Issuer provides a registration URI, browsers can detect if an email address provided by the user to a web page has an Issuer, and offer the user to enable verified autocomplete, similar to how browser prompt to remember email addresses. 
+
 
 ## Key Concepts
 
@@ -145,8 +147,11 @@ Note this record MUST also exist for `issuer.example`, IE the email domain MUST 
 
 - **4.3** - The browser checks that the `.well-known/web-identity` file contains JSON that includes the following properties:
 
-- *vac_issuance_endpoint* - the API endpoint the browser calls to obtain an VAC-JWT
-- *vac_jwks_uri* - the URL where the issuer provides its public keys to verify the VAC-JWT
+- **vac_issuance_endpoint** - REQUIRED - the API endpoint the browser calls to obtain an VAC-JWT
+- **vac_jwks_uri** - REQUIRED - the URL where the issuer provides its public keys to verify the VAC-JWT
+- **vac_registration_uri** - OPTIONAL - the URL the browser can load in a popup window for a user to enable an Issuer 
+
+> Can we have the browser pass the email as a query parameter to the `vac_registration_uri` to provide a more seamless user experience for registration?
 
 Each of these properties MUST include the issuer domain as the root of their hostname. 
 
@@ -155,7 +160,8 @@ Following is an example `.well-known/web-identity` file
 ```json
 {
   "vac_issuance_endpoint": "https://accounts.issuer.example/vac/issuance",
-  "vac_jwks_uri": "https://accounts.issuer.example/vac/jwks.json"
+  "vac_jwks_uri": "https://accounts.issuer.example/vac/jwks.json",
+  "vac_registration_uri": "https://accounts.issuer.example/vac/registration
 }
 ```
 
