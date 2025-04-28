@@ -215,7 +215,7 @@ Following is an example `.well-known/web-identity` file
 }
 ```
 
-- **5.2** If the browser successful authenticated the user with WebAuthn, the browser repeats the call to the `vat_issuance_endpoint`, including the WebAuthN **assertion** results.
+- **5.3** If the Issuer returned a `webauthn` object, and the browser has a credential for the user, then the browser will call the webauthn API to authenticate the user. If the user cancels or the authentication fails, the browser will fall back to loading the `continue_on` URL in a popup window. If the browser successful authenticated the user with WebAuthn, the browser repeats the call to the `vat_issuance_endpoint`, including the WebAuthN **assertion** results.
 
 ```json
 {
