@@ -26,7 +26,7 @@ If an Issuer provides a registration URI, browsers can detect if an email addres
 
 - VAC-JWT: A JWT signed by the Issuer containing the claim and nonce provided by the RP. The VAC-JWT is requested of the Issuer by the browser at the user's request, and provided to the web page that made the request aka Replying Party (RP) aka verifier.
 
-- Issuer: a service that exposes a `vca_issuance_endpoint` that is called by the browser to obtain an VAC-JWT, a `sd_jwks_uri` that contains the public keys used to verify the VAC-JWT, and optionally a `vca_registration_uri` that the browser can open for the user to register an Issuer for an email. The Issuer is identified by its domain, an eTLD+1 (eg `issuer.example`). THe hostname in all URLs from the Issuer's metadata MUST end with the Issuer's domain. This identifier is what binds the VAC-JWT, the DNS delegation, with the Issuer.
+- Issuer: a service that exposes a `vca_issuance_endpoint` that is called by the browser to obtain an VAC-JWT, a `vca_jwks_uri` that contains the public keys used to verify the VAC-JWT, and optionally a `vca_registration_uri` that the browser can open for the user to register an Issuer for an email. The Issuer is identified by its domain, an eTLD+1 (eg `issuer.example`). THe hostname in all URLs from the Issuer's metadata MUST end with the Issuer's domain. This identifier is what binds the VAC-JWT, the DNS delegation, with the Issuer.
 
 > Restricting the Issuer to be an eTLD+1 may be too restrictive. Let's get feedback. Having a crisp identifier and an issuer identifier format different than OpenID Connect tokens (no leading https://) simplifies verification and has clean bindings between all the services, DNS record, and token.
 
@@ -57,24 +57,20 @@ Ahead of time, a website registers itself as an Issuer:
 - **1.2** - The page calls to register claims it is authoritative for as an Issuer with:
 
 ```javascript
-// This prompts the user to accept "https://issuer.example" as Issuer for john.doe@domain.example.
 const response = await IdentityProvider.register({
     email: 'john.doe@domain.example'
 });
 ```
 A page can make multiple calls to register claims.
 
->Q: can the Issuer signal to the browser here to use a Passkey for authentication?
-
-> Q: Does the Issuer do this each time the page is loaded and the user visits? Perhaps an API for the Issuer to get a list of claims the browser has for the Issuer so the Issuer knows which ones to add? The downside is the potential for cross context disclosure. For example, the user may have both a personal and work account at the same Issuer, and the Issuer does not know the two accounts are for the same user, and the browser does not know which account is signed in, so can only provide all claims to the Issuer.
-
-> Q: How are claims removed that are no longer supported by the Issuer? Is this only done by the user? Perhaps prompted for user to delete if Issuer returns an error? For example, they leave a company and no longer can obtain a verified work email address. How is it removed from future selections? Perhaps similar to other autocomplete cleanup where the user can see the Issuers and claims and can delete which ones will be offered?
+> Alternatively the API could take an array of claims
 
 > TODO: Explore doing this declaratively with HTTP headers and/or HTML metadata.
 
 - **1.3** - The browser then confirms the Issuer will correctly issue VAC-JWTs by performing steps (4) and (7) below.
 
-- **1.4** - If the Issuer has provided a valid VAC-JWT for the email address, the browser prompts the user to accept the Issuer's registration request by displaying the Isssuer domain and the email address verified, and if the user accepts the prompt, the browser records `issuer.example` as an Issuer for the `email` claims `john.doe@domain.example` in its local storage.
+- **1.4** - If the Issuer has provided a valid VAC-JWT for the email address the browser records `issuer.example` as an Issuer for the `email` claims `john.doe@domain.example` in its local storage.
+
 
 
 ## 2. Email Request
@@ -110,9 +106,7 @@ try {
 }
 ```
 
-
-> It does not seem practical to enable this functionality to be declarative in HTML as a unique `nonce` is required for the RP server to bind the VAC-JWT to the session, but perhaps as a header? 
-
+> TODO: Explore replacing not having a JS call and doing this declaratively with HTTP headers and/or HTML metadata containing a dynamically generated nonce and a hidden field to accept the token.
 
 
 ## 3. Email Selection 
@@ -166,15 +160,9 @@ Following is an example `.well-known/web-identity` file
 ```
 
 
-- **4.3** - browser POSTS `application/json` to the `vac_issuance_endpoint` of the Issuer containing the selected email, the `vac-jst` format, and the nonce along with w/ 1P cookies to get a VAC-JWT:
+- **4.3** - browser POSTS TBD to the `vac_issuance_endpoint` of the Issuer containing the selected email, the `vac-jat` format, and the nonce along with w/ 1P cookies to get a VAC-JWT.
 
-```json
-{ 
-  "email": "john.doe@domain.example",
-  "format": "vac-jwt",
-  "nonce": "259c5eae-486d-4b0f-b666-2a5b5ce1c925"
-}
-```
+> TBD - the browser must prove possession of a key so the Issuer can bind the browser's key as a `cnf` claim in the VAC-JWT
 
 ## 5. User Authentication 
 
@@ -204,15 +192,11 @@ Following is an example `.well-known/web-identity` file
     "challenge":      [ /* Uint8Array bytes */ ],
     "rpId":         "issuer.example",
     "allowCredentials":[
-    {
-      "type": "public-key",
-      "id":   [ /* the raw byte values of credential.id for john.doe@… */ ],
-      "transports": ["internal","usb"]   // optional
-    },
-    {
-      "type": "public-key",
-      "id":   [ /* another credential.id if multi-device */ ]
-    }
+      {
+        "type": "public-key",
+        "id":   [ /* the raw byte values of credential.id for john.doe@… */ ],
+        "transports": ["internal","usb"]   // optional
+      }
     ],
     "userVerification": "preferred",
     "timeout":        60000
@@ -251,47 +235,38 @@ on successful login the Issuer calls `IdentityProvider.resolve(token)` where `to
 
 ## 6. Token Generation
 
-- **6.1** - The Issuer generates a VAC-JWT with a `typ` set to `vac-jwt`, `alg` set to the algorithm used,  and the `kid` set to the kid value of the key used to sign the VAC-JWT, and a payload that MUST include the following claims:
+- **6.1** - The Issuer generates a VAC-JWT that contains:
 
 - `iss`: the Issuer domain
 - `iat`: the time the token was issued in UNIX seconds
 - `jti`: a unique token identifier
 - `email`: the email address
 - `nonce`: the nonce value provided in the claim request
+- `cnf`: the public key to the key pair used by browser in making the request.
 
-```json
-// JWT header
-{
-    "typ": "vac-jwt",
-    "alg": "ES256",
-    "kid": "2025-03-28T14:21:03Z"
-}
-// JWT payload
-{
-    "iss": "issuer.example",
-    "iat": 1714311630,
-    "jti": "7b4b3ed1-2c91-4b73-89a5-6b2d826601f0",
-    "email": "john.doe@domain.example",
-    "nonce": "259c5eae-486d-4b0f-b666-2a5b5ce1c925"
-}
+> TBD: token format. Use SD-JWT or a simple JWT and then the browser generates a `kb+jwt` https://www.ietf.org/archive/id/draft-ietf-oauth-selective-disclosure-jwt-18.html#name-key-binding-jwt that contains the page URL as the `aud` value so that the token cannot be replayed.
 
-```
+- **6.2** - the browser generates a Key Binding JWT (KB-JWT) that binds sets the `aud` to be the page URL and includes the `nonce`. 
 
 
 ## 7. Token Verification
 
-- **6.1** - The `navigator.credentials.get()` call returns and `credential.token` is a VAC-JWT
+- **7.1** - The `navigator.credentials.get()` call returns and `credential.token` is a VAC-JWT
 
-- **6.2** - JS code sends `token` to RP server. 
+- **7.2** - JS code sends `token` to RP server. 
 
-- **6.4** - RP Server retrieves the values from VAC-JWT header and payload and and extracts the email domain from the `email` claim.
+- **7.4** - RP Server retrieves the values from VAC-JWT header and payload and and extracts the email domain from the `email` claim.
 
-- **6.5** - RP Server verifies the `typ` is `vac-jwt`, the `iat` is not earlier than the Verifiers threshold (TODO recommendation), the `jti` has not recently been received, and the `nonce` value matches the browser session `nonce` that was provided.
+- **7.5** - RP Server verifies the `typ` is `vac-jwt`, the `iat` is not earlier than the Verifiers threshold (TODO recommendation), the `jti` has not recently been received, and the `nonce` value matches the browser session `nonce` that was provided.
 
-- **6.6** - RP Server verifies the Issuer is authorized for the email domain by fetching the DNS just as browser did in 4.1
+- **7.6** - RP Server verifies the Issuer is authorized for the email domain by fetching the DNS just as browser did in 4.1
 
-- **6.6** - RP Server fetches `.well-known/web-identity` just as browser did in 4.2. and extracts `vac_jwks_uri` and verifies the host ends with the Issuer domain.
+- **7.6** - RP Server fetches `.well-known/web-identity` just as browser did in 4.2. and extracts `vac_jwks_uri` and verifies the host ends with the Issuer domain.
 
-- **6.7** - RP Server verifies VAC-JWT token signature using keys from the `vac_jwks_uri`
+- **7.7** - RP Server verifies VAC-JWT token signature using keys from the `vac_jwks_uri`
 
+- **7.8** - RP Server verifies KB-JWT key matches `cnf` in VAC-JWT.
 
+- **7.9** - RP Server verifies `nonce` in KB-JWT matches `nonce` in VAC-JWT.
+
+- **7.10** - RP Server verifies the KB-JWT.
