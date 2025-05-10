@@ -1,7 +1,6 @@
 # verified-autocomplete-claims
-Verified Autocomplete Claims - a browser mediated verified claim release
 
-> This document currently focusses on providing a verified email claim, but the protocol can be extended to other claims such as phone
+Verified Autocomplete Claims - a browser mediated verified claim release. This document specifies how to provide a verified email claim, and extensions can build on the protocol to provide other verified claims such as a phone number.
 
 ## Verified Email
 
@@ -36,6 +35,51 @@ If an Issuer provides a registration URI, browsers can detect if an email addres
 Registration Process: The user navigates to the Issuer's website (the apex domain or any subdomain) and is prompted to enable the Issuer to issue verified emails, and the user accepts.
 
 Verified Email Release: The user navigates to any website that requires a verified email address and an input field to enter an email address. The user focusses on the input field and the browser provides one or more verified emails for the user to provide. The user selects a verified email, potentially authenticates with the Issuer, and the app proceeds having obtained a verified email.
+
+# Issuer Registration
+
+An Issuer is a service that can authenticate the user via a browser and is authorized to make claims about an email domain. An Issuer is identified by an eTLD+1 domain name, such as `issuer.example` or `example.com`. This restricts there to be only one Issuer for an eTLD+1, but ensures that cookies can only be read by a single Issuer. To be recognized as an Issuer, the following must be configured
+
+## .well-known/web-identity
+
+
+The Issuer must host a document at `.well-known/web-identity` that contains a JSON object that MUST contain:
+
+- **vac_issuance_endpoint** - REQUIRED - the API endpoint the browser calls to obtain a VAC-JWT
+- **vac_jwks_uri** - REQUIRED - the URL where the issuer provides its public keys to verify the VAC-JWT
+
+
+Both of `vac_issuance_endpoint` and `vac_jwks_uri` MUST have an eTLD+1 that matches the eTLD+1 of the Issuer.
+
+The response to the request to the eTLD+1 and MUST be of `Content-Type` `application/json`. The initial request MAY return a redirect to a web server that is on a subdomain of the eTLD+1, but MUST have the same path. 
+
+Following is a non-normative example of a response body:
+
+
+```json
+{
+  "vac_issuance_endpoint": "https://accounts.issuer.example/vac/issuance",
+  "vac_jwks_uri": "https://accounts.issuer.example/vac/jwks.json"
+}
+```
+
+
+## Mail Domain DNS 
+
+The email domain MUST have a `TXT` DNS record for `email._web-identity` where the content is `iss=` followed by the Issuer Domain.
+
+Following is a non-normative example for the email domain `domain.example` and the Issuer Domain of `issuer.domain` :
+
+```
+email._web-identity.domain.example TXT iss=issuer.example
+```
+
+This record confirms that `domain.example` has delegated Verified Email Autocomplete to the Issuer `issuer.example`.
+
+Note this record MUST also exist for `issuer.example`, IE the email domain MUST delegate to itself.
+
+> Access to DNS records and email is often independent of website deployments. This provides assurance that an Issuer is truly authorized as an insider with only access to websites on `issuer.example` could setup an Issuer that would grant them verified emails for any email at `issuer.example`.
+
 
 # Processing Steps
 
@@ -121,48 +165,24 @@ try {
 
 - **4.1** The browser fetches DNS record for Issuer authorization by prepending `email._webidentity.` to the Issuer domain and fetching the `TXT` and confirming it contains the string `iss=issuer.example`
 
-example DNS record:
 
-```
-email._webidentity.domain.example   TXT   iss=issuer.example
-```
+- **4.2** - The browser loads `https://issuer.example/.well-known/web-identity` checks that file includes `vac_issuance_endpoint` and `vac_jwks_uri` per Issuer Registration above
 
-This record confirms that `domain.example` has delegated Verified Email Autocomplete to the Issuer `issuer.example`.
+- **4.3** - The browser generates a public-private key pair and generates a JWT of type `vac_request+jwt` signed by the private key that contains the following header properties:
 
-Note this record MUST also exist for `issuer.example`, IE the email domain MUST delegate to itself.
+- **typ** - set to the string `vac-request+jwt`
+- **alg** - one of the supported algorithms 
 
+> Do we include a supported algorithms in the `.well-known/web-identity`
 
-> Access to DNS records and email is often independent of website deployments. This provides assurance that an Issuer is truly authorized as an insider with only access to websites on `issuer.example` could setup an Issuer that would grant them verified emails for any email at `issuer.example`.
+The JWT has the following claims
 
-
-- **4.2** - The browser loads `https://issuer.example/.well-known/web-identity` and MUST follow redirects to the same path but with a different subdomain of the Issuer, for example `https://accounts.issuer.example/.well-known/web-identity`. 
-
-> Most apex domains redirect all HTTP calls to a subdomain
-
-- **4.3** - The browser checks that the `.well-known/web-identity` file contains JSON that includes the following properties:
-
-- **vac_issuance_endpoint** - REQUIRED - the API endpoint the browser calls to obtain an VAC-JWT
-- **vac_jwks_uri** - REQUIRED - the URL where the issuer provides its public keys to verify the VAC-JWT
-- **vac_registration_uri** - OPTIONAL - the URL the browser can load in a popup window for a user to enable an Issuer 
-
-> Can we have the browser pass the email as a query parameter to the `vac_registration_uri` to provide a more seamless user experience for registration?
-
-Each of these properties MUST include the issuer domain as the root of their hostname. 
-
-Following is an example `.well-known/web-identity` file
-
-```json
-{
-  "vac_issuance_endpoint": "https://accounts.issuer.example/vac/issuance",
-  "vac_jwks_uri": "https://accounts.issuer.example/vac/jwks.json",
-  "vac_registration_uri": "https://accounts.issuer.example/vac/registration
-}
-```
+- **email** - the email to be verified
+- **nonce** - the nonce from the RP
+- **cnf** - the jwk for the public key used to sign the JWT
 
 
-- **4.3** - browser POSTS TBD to the `vac_issuance_endpoint` of the Issuer containing the selected email, the `vac-jat` format, and the nonce along with w/ 1P cookies to get a VAC-JWT.
-
-> TBD - the browser must prove possession of a key so the Issuer can bind the browser's key as a `cnf` claim in the VAC-JWT
+- **4.4** - browser POSTS with `Content-Type` `application/x-www-form-urlencoded` the value `vac_request_token` set to the generated JWT along with w/ 1P cookies.
 
 ## 5. User Authentication 
 
@@ -209,7 +229,6 @@ Following is an example `.well-known/web-identity` file
 ```json
 {
   "email": "john.doe@domain.example",
-  "format": "vac-jwt",
   "nonce": "259c5eae-486d-4b0f-b666-2a5b5ce1c925",
   "assertion": {
     "id": "PLACEHOLDER_FOR_ASSERTION_ID",
@@ -233,9 +252,9 @@ on successful login the Issuer calls `IdentityProvider.resolve(token)` where `to
 
 
 
-## 6. Token Generation
+## 6. SD-JWT+KB Generation
 
-- **6.1** - The Issuer generates a VAC-JWT that contains:
+- **6.1** - The Issuer generates a SD-JWT that does not have any selective discloser claims that MUST have the following claims: 
 
 - `iss`: the Issuer domain
 - `iat`: the time the token was issued in UNIX seconds
@@ -244,29 +263,72 @@ on successful login the Issuer calls `IdentityProvider.resolve(token)` where `to
 - `nonce`: the nonce value provided in the claim request
 - `cnf`: the public key to the key pair used by browser in making the request.
 
-> TBD: token format. Use SD-JWT or a simple JWT and then the browser generates a `kb+jwt` https://www.ietf.org/archive/id/draft-ietf-oauth-selective-disclosure-jwt-18.html#name-key-binding-jwt that contains the page URL as the `aud` value so that the token cannot be replayed.
+and returns it to the browser.
 
-- **6.2** - the browser generates a Key Binding JWT (KB-JWT) that binds sets the `aud` to be the page URL and includes the `nonce`. 
+- **6.2** - The browser generates a Key Binding JWT per [SD-JWT draft 18](https://www.ietf.org/archive/id/draft-ietf-oauth-selective-disclosure-jwt-18.html#name-key-binding-jwt) and then concatenates the SD-JWT, a '~', and the KB and presents that SD-KWT+KB to the page.
+
 
 
 ## 7. Token Verification
 
-- **7.1** - The `navigator.credentials.get()` call returns and `credential.token` is a VAC-JWT
+- **7.1** - The `navigator.credentials.get()` call returns and `credential.token` is a SD-JWT+KB.
 
 - **7.2** - JS code sends `token` to RP server. 
 
-- **7.4** - RP Server retrieves the values from VAC-JWT header and payload and and extracts the email domain from the `email` claim.
+- **7.4** - RP Server seperates SD-JWT from the KBJWT, and retrieves the values from SD-JWT header and payload and and extracts the email domain from the `email` claim that MUST exist.
 
-- **7.5** - RP Server verifies the `typ` is `vac-jwt`, the `iat` is not earlier than the Verifiers threshold (TODO recommendation), the `jti` has not recently been received, and the `nonce` value matches the browser session `nonce` that was provided.
+- **7.5** - RP Server verifies the `typ` is `sd-jwt`, the `iat` is not earlier than the Verifiers threshold (TODO recommendation), the `jti` has not recently been received, and the `nonce` value matches the browser session `nonce` that was provided. 
 
 - **7.6** - RP Server verifies the Issuer is authorized for the email domain by fetching the DNS just as browser did in 4.1
 
 - **7.6** - RP Server fetches `.well-known/web-identity` just as browser did in 4.2. and extracts `vac_jwks_uri` and verifies the host ends with the Issuer domain.
 
-- **7.7** - RP Server verifies VAC-JWT token signature using keys from the `vac_jwks_uri`
+- **7.7** - RP Server verifies SD-JWT token signature using keys from the `vac_jwks_uri`
 
-- **7.8** - RP Server verifies KB-JWT key matches `cnf` in VAC-JWT.
+- **7.8** - RP Server verifies KB-JWT key matches `cnf` in SD-JWT.
 
-- **7.9** - RP Server verifies `nonce` in KB-JWT matches `nonce` in VAC-JWT.
+- **7.9** - RP Server verifies `nonce` in KB-JWT matches `nonce` in SD-JWT.
 
 - **7.10** - RP Server verifies the KB-JWT.
+
+## 8. SD-JWT+KB
+
+
+```text
+<SD-JWT>~<KB-JWT>
+```
+
+Following is an ABNF [RFC5234] for the VAc-JWT+KB, and various constituent parts:
+
+ALPHA = %x41-5A / %x61-7A ; A-Z / a-z
+DIGIT = %x30-39 ; 0-9
+BASE64URL = 1*(ALPHA / DIGIT / "-" / "_")
+JWT = BASE64URL "." BASE64URL "." BASE64URL
+SD-JWT = JWT
+KB-JWT = JWT
+SD-JWT-KB = SD-JWT "~" KB-JWT
+
+## 8.1 SD-JWT
+
+- `typ`: "vac+jwt"
+
+- `iss`: the Issuer domain
+- `iat`: the time the token was issued in UNIX seconds
+- `jti`: a unique token identifier
+- `email`: the email address
+- `nonce`: the nonce value provided in the claim request
+- `cnf`: the public key to the key pair used by browser in making the request.
+
+
+## 8.2 KB-JWT
+
+- `typ`: "kb+jwt"
+- `alg`:
+
+- `iat`
+- `aud`
+- `vac_hash` 
+
+
+
+
